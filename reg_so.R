@@ -143,8 +143,6 @@ population <- population %>%
   rename("population" = value) %>%
   mutate(date = as.numeric(date))
 
-
-
 panel_data <- panel_data %>%
   mutate(date = year(year)) %>%
   left_join(population) %>%
@@ -204,6 +202,29 @@ panel_data <- panel_data %>%
 # Create MP variable
 panel_data <- panel_data %>%
   mutate(MP = (Android - iOS) - (dplyr::lag(Android) - dplyr::lag(iOS)))
+
+
+# Leer base de Apple 
+apple <- read_csv("output/apple_data.csv") %>%
+  rename("r&d_apple" = `r&d`,
+         "assets_apple" = assets,
+         "liabilities_apple" = liabilities,
+         "liquidity_apple" = liquidity, 
+         "year" = date) %>%
+  mutate(year = as.yearqtr(year))
+
+google <- read_csv("output/google_data.csv") %>%
+  rename("r&d_google" = `r&d`,
+         "assets_google" = assets,
+         "liabilities_google" = liabilities,
+         "liquidity_google" = liquidity, 
+         "year" = date) %>%
+  mutate(year = as.yearqtr(year))
+
+panel_data <- panel_data %>%
+  mutate(year = as.yearqtr(year)) %>%
+  left_join(apple, by ="year") %>%
+  left_join(google, by= "year")
 
 write_csv("output/panel_data.csv", x = panel_data)
 
