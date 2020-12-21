@@ -12,7 +12,7 @@ Los datos utilizados son los siguientes:
 | Assets and Liabilities (Apple and Alphabet) | Quarterly | Macrotrends |
 
 
-El panel de datos se encuentra en la carpeta "output", el nombre del archivo es: "panel_data.csv". Las columnas
+El panel de datos se encuentra en la carpeta "output", el nombre del archivo es "panel_data.csv". Las columnas
 que contiene el .csv son las siguientes:
 - year: Fecha en trimestre
 - country: Identificador del país
