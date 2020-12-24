@@ -233,8 +233,11 @@ panel_data %>%
   group_by(country) %>%
   summarise(total_recession = sum(recession))
 
-for (k in unique(panel_data$country)) {
-  df <- panel_data %>%
+panel <- panel_data %>%
+  mutate(year = as.Date(year))
+
+for (k in unique(panel$country)) {
+  df <- panel %>%
     filter(country == k)
   
   years_start_recession <- c()
@@ -271,14 +274,18 @@ for (k in unique(panel_data$country)) {
   duration_recession  <- as.double(duration_recession)/365
   print(duration_recession*4)
   decline_gdp_growth_cum <- c()
+  years_start_recession <- rev(years_start_recession)
   for (h in 1:length(years_end_recession)) {
     if (length(years_end_recession)== 0) {
       next
     } else {
-    init <- as.Date(rev(years_start_recession[h]))
+    init <- as.Date(years_start_recession[h])
+    #print(init)
     end <- as.Date(years_end_recession[h])
     df_filter <- df %>%
-      filter(year == init | year == end)
+      filter(year == init | year == end) %>%
+      arrange(year)
+    #print(df_filter)
     decline_gdp_growth_cum <- c(decline_gdp_growth_cum, (df_filter[2,]$gdp_percapita /  df_filter[1,]$gdp_percapita)-1)
     }
   }
