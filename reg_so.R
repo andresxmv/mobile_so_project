@@ -186,6 +186,7 @@ mobile_subscriptions <- mobile_subscriptions %>% group_by(country) %>% do(expand
 
 mobile_subscriptions <- mobile_subscriptions %>%
   group_by(country) %>%
+  mutate(mobile_subscriptions_int = zoo::na.spline(mobile_subscriptions_int)) %>%
   mutate(mobile_growth_rate = c(NA, NA, NA, NA, diff(log(mobile_subscriptions_int), 4)))
 
 mobile_subscriptions <- mobile_subscriptions %>%
@@ -225,6 +226,7 @@ panel_data <- panel_data %>%
   mutate(year = as.yearqtr(year)) %>%
   left_join(apple, by ="year") %>%
   left_join(google, by= "year")
+
 
 write_csv("output/panel_data.csv", x = panel_data)
 
@@ -273,8 +275,11 @@ for (k in unique(panel$country)) {
   duration_recession <- difftime(as.Date(years_end_recession), as.Date(rev(years_start_recession)), units = "days")
   duration_recession  <- as.double(duration_recession)/365
   print(duration_recession*4)
-  decline_gdp_growth_cum <- c()
   years_start_recession <- rev(years_start_recession)
+  decline_gdp_growth_cum <- c()
+  decline_industry_cum <- c()
+  decline_andriod_cum <- c()
+  decline_ios_cum <- c()
   for (h in 1:length(years_end_recession)) {
     if (length(years_end_recession)== 0) {
       next
@@ -287,17 +292,74 @@ for (k in unique(panel$country)) {
       arrange(year)
     #print(df_filter)
     decline_gdp_growth_cum <- c(decline_gdp_growth_cum, (df_filter[2,]$gdp_percapita /  df_filter[1,]$gdp_percapita)-1)
+    decline_industry_cum <- c(decline_industry_cum, (df_filter[2,]$mobile_subscriptions_int /  df_filter[1,]$mobile_subscriptions_int)-1)
+    decline_andriod_cum <- c(decline_andriod_cum, (df_filter[2,]$Android /  df_filter[1,]$Android)-1)
+    decline_ios_cum <- c(decline_ios_cum, (df_filter[2,]$iOS /  df_filter[1,]$iOS)-1)
     }
   }
   print("Caida Acumulada en Recesión")
   print(decline_gdp_growth_cum)
+  
+  print("Caida Acumulada Industria")
+  print(decline_industry_cum)
+  print("Caida Acumulada Andriod")
+  print(decline_andriod_cum)
+  print("Caida Acumulada iOS")
+  print(decline_ios_cum)
   print("==============================")
   
 }
 
-  
 
 
+#----------------------------
+# Figures Random
+#----------------------------  
+# R&D
+panel_data %>%
+  ggplot(aes(year, `r&d_apple`, color = "Apple")) +
+  geom_line() +
+  geom_line(aes(year, `r&d_google`, color = "Alphabet")) +
+  ylab("R&D") +
+  xlab("Year") +
+  theme_bw() +
+  labs(colour = "")
+ggsave("figures/r&d.png")
+# Liquidity
+panel_data %>%
+  ggplot(aes(year, liquidity_apple, color = "Apple")) +
+  geom_line() +
+  geom_line(aes(year, liquidity_google, color = "Alphabet")) +
+  ylab("Liquidity") +
+  xlab("Year") +
+  theme_bw() +
+  labs(colour = "")
+ggsave("figures/liquidity.png")
+# Assets and Liabilities
+panel_data %>%
+  ggplot(aes(year, assets_apple, color = "Asset Apple")) +
+  geom_line() +
+  geom_line(aes(year, liabilities_apple, color = "Liabilities Apple")) +
+  geom_line(aes(year, assets_google, color = "Asset Alphabet")) +
+  geom_line(aes(year, liabilities_google, color = "Liabilities Alphabet")) +
+  ylab("") +
+  xlab("Year") +
+  theme_bw() +
+  labs(colour = "")
+ggsave("figures/assets_liabilities.png")
+
+# Industry 
+panel_data %>%
+  ggplot(aes(year, mobile_subscriptions_int)) +
+  geom_line() +
+  facet_wrap(~country, scales = "free")
+ggsave("figures/mobile_sub_levels.png")
+
+panel_data %>%
+  ggplot(aes(year, mobile_growth_rate)) +
+  geom_line() +
+  facet_wrap(~country, scales = "free")
+ggsave("figures/mobile_sub_rate.png")
 #----------------------------
 # Regressions
 #----------------------------
