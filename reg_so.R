@@ -48,7 +48,6 @@ NGDP_R_K_XDC <- NGDP_R_K_XDC %>%
 
 NGDP_R_K_XDC$year <- head(yq(NGDP_R_K_XDC$year_qtr, format = "%Y-Q%q"), -1)
 
-
 # Check Balanced Panel (not balanced)
 NGDP_R_K_XDC %>%
   group_by(country) %>%
@@ -114,7 +113,7 @@ panel_data <- NGDP_R_K_XDC_2019 %>%
   left_join(mobile, by=c("country", "year"))
 
 panel_data <- panel_data %>%
-  select(year, country, gdp, gdp_growth, recession_gdp, Android, iOS) %>%
+  select(year, country, gdp, gdp_growth, recession_gdp, Android, iOS, `BlackBerry OS`, Windows) %>%
   mutate(diff_so = Android - iOS)
 
 #panel_data %>%
@@ -184,6 +183,7 @@ mobile_subscriptions <- mobile_subscriptions %>%
 expand_and_interpolate <- function(x) interpolate_data(expand_data(x))
 mobile_subscriptions <- mobile_subscriptions %>% group_by(country) %>% do(expand_and_interpolate(.))
 
+# Extrapolo y calculo tasa
 mobile_subscriptions <- mobile_subscriptions %>%
   group_by(country) %>%
   mutate(mobile_subscriptions_int = zoo::na.spline(mobile_subscriptions_int)) %>%
@@ -197,9 +197,6 @@ panel_data <- panel_data %>%
   left_join(mobile_subscriptions, by=c("date", "country")) %>%
   select(-date)
 
-
-
-
 # Create MP variable
 panel_data <- panel_data %>%
   mutate(MP = (Android - iOS) - (dplyr::lag(Android) - dplyr::lag(iOS)))
@@ -210,7 +207,9 @@ apple <- read_csv("output/apple_data.csv") %>%
   rename("r&d_apple" = `r&d`,
          "assets_apple" = assets,
          "liabilities_apple" = liabilities,
-         "liquidity_apple" = liquidity, 
+         "current_assets_apple" = current_assets,
+         "current_liabilities_apple" = current_liabilities,
+         "current_ratio_apple" = current_ratio,
          "year" = date) %>%
   mutate(year = as.yearqtr(year))
 
@@ -218,7 +217,9 @@ google <- read_csv("output/google_data.csv") %>%
   rename("r&d_google" = `r&d`,
          "assets_google" = assets,
          "liabilities_google" = liabilities,
-         "liquidity_google" = liquidity, 
+         "current_assets_google" = current_assets,
+         "current_liabilities_google" = current_liabilities,
+         "current_ratio_google" = current_ratio,
          "year" = date) %>%
   mutate(year = as.yearqtr(year))
 
@@ -238,10 +239,20 @@ panel_data %>%
 panel <- panel_data %>%
   mutate(year = as.Date(year))
 
+ios <- c()
+andriod <- c()
+recession_date <- c()
+caida_acum <- c()
+caida_android <- c()
+caida_ios <- c()
+gdp_init <- c()
+duration <- c()
+industria_init <- c()
+caida_industria <- c()
 for (k in unique(panel$country)) {
   df <- panel %>%
     filter(country == k)
-  
+
   years_start_recession <- c()
   for (i in nrow(df):1) {
     if (i <= 1) {
@@ -274,42 +285,93 @@ for (k in unique(panel$country)) {
   print("Duración Crisis (en trimestres)")
   duration_recession <- difftime(as.Date(years_end_recession), as.Date(rev(years_start_recession)), units = "days")
   duration_recession  <- as.double(duration_recession)/365
+  duration <- c(duration, duration_recession*4)
   print(duration_recession*4)
+  
   years_start_recession <- rev(years_start_recession)
   decline_gdp_growth_cum <- c()
   decline_industry_cum <- c()
   decline_andriod_cum <- c()
   decline_ios_cum <- c()
-  for (h in 1:length(years_end_recession)) {
+  market_share_andriod <- c()
+  market_share_ios <- c()
+  gdp_inicial <- c()
+  industria_inicial <- c()
+  for (h in 1:length(years_start_recession)) {
     if (length(years_end_recession)== 0) {
-      next
+      if (length(duration_recession) == 0) {
+        years_start_recession <- 99
+        next
+      }
     } else {
     init <- as.Date(years_start_recession[h])
     #print(init)
     end <- as.Date(years_end_recession[h])
-    df_filter <- df %>%
+    #print(end)
+    df_filter_1<- df %>%
+      filter(year >= init & year <= end) %>%
+      arrange(year)
+    
+    df_filter<- df %>%
       filter(year == init | year == end) %>%
       arrange(year)
     #print(df_filter)
-    decline_gdp_growth_cum <- c(decline_gdp_growth_cum, (df_filter[2,]$gdp_percapita /  df_filter[1,]$gdp_percapita)-1)
+    decline_gdp_growth_cum <- c(decline_gdp_growth_cum, sum(df_filter_1$gdp_percapita_rate, na.rm=T))
     decline_industry_cum <- c(decline_industry_cum, (df_filter[2,]$mobile_subscriptions_int /  df_filter[1,]$mobile_subscriptions_int)-1)
     decline_andriod_cum <- c(decline_andriod_cum, (df_filter[2,]$Android /  df_filter[1,]$Android)-1)
     decline_ios_cum <- c(decline_ios_cum, (df_filter[2,]$iOS /  df_filter[1,]$iOS)-1)
+    market_share_andriod <- c(market_share_andriod, df_filter[1, ]$Android)
+    market_share_ios <- c(market_share_ios, df_filter[1, ]$iOS)
+    gdp_inicial <- c(gdp_inicial, df_filter[1, ]$gdp_percapita)
+    industria_inicial <- c(industria_inicial, df_filter[1, ]$mobile_subscriptions_int)
+    #print(length(decline_gdp_growth_cum))
     }
   }
+  # Llenar vectores
+  recession_date <- c(recession_date, as.Date(years_start_recession))
+  #duration <- c(duration, duration_recession)
+  caida_acum <- c(caida_acum, decline_gdp_growth_cum)
+  caida_industria <- c(caida_industria, decline_industry_cum)
+  caida_android <- c(caida_android, decline_andriod_cum)
+  caida_ios <- c(caida_ios, decline_ios_cum)
+  gdp_init <- c(gdp_init, gdp_inicial)
+  industria_init <- c(industria_init, industria_inicial)
+  ios <- c(ios, market_share_ios)
+  andriod <- c(andriod, market_share_andriod)
+  
+  
   print("Caida Acumulada en Recesión")
   print(decline_gdp_growth_cum)
-  
   print("Caida Acumulada Industria")
   print(decline_industry_cum)
   print("Caida Acumulada Andriod")
   print(decline_andriod_cum)
   print("Caida Acumulada iOS")
   print(decline_ios_cum)
+  print("Market Share Andriod")
+  print(market_share_andriod)
+  print("Market Share iOs")
+  print(market_share_ios)
   print("==============================")
   
 }
 
+
+table_recession <- data.frame("period_init" = as.Date(recession_date[recession_date!=99]),
+           "duration" = round(duration, 0),
+           "decline_gdp" = caida_acum,
+           "decline_industry" = caida_industria,
+           "decline_android" = caida_android,
+           "decline_ios" = caida_ios,
+           "gdp_pc_init" = gdp_init,
+           "industria_init" = industria_init,
+           "android_init" = andriod,
+           "ios_init" = ios)
+
+index_to_replace <- which(table_recession$duration < 0)
+table_recession[index_to_replace, 2:10] <- NA 
+
+write_csv(table_recession, "output/table_recession.csv")
 
 
 #----------------------------
@@ -327,9 +389,9 @@ panel_data %>%
 ggsave("figures/r&d.png")
 # Liquidity
 panel_data %>%
-  ggplot(aes(year, liquidity_apple, color = "Apple")) +
+  ggplot(aes(year, current_ratio_apple, color = "Apple")) +
   geom_line() +
-  geom_line(aes(year, liquidity_google, color = "Alphabet")) +
+  geom_line(aes(year, current_ratio_google, color = "Alphabet")) +
   ylab("Liquidity") +
   xlab("Year") +
   theme_bw() +
@@ -365,13 +427,7 @@ ggsave("figures/mobile_sub_rate.png")
 #----------------------------
 # Drop El Salvador
 panel_data_filter <- panel_data %>%
-  filter(country != "El Salvador") %>%
-  filter(year <= "2011-12-31")
-
-
-cor_data <- cor(as.matrix(panel_data_filter %>% select(-year, -country)), use = "complete.obs")
-corrplot(cor_data, type = "upper", order = "hclust", 
-         tl.col = "black")
+  filter(country != "El Salvador")
 
 
 # Modelo OLS simple
@@ -389,52 +445,6 @@ coeftest(model_fe, vcov. = vcovHC, type = "HC1")
 
 
 
-
-INDPRO <- getSymbols("INDPRO", src = "FRED", auto.assign = F)
-INDPRO <- data.frame(date=index(INDPRO), coredata(INDPRO))
-INDPRO <- INDPRO %>%
-  filter(date >= "2008-12-01")
-
-INDPRO <- INDPRO %>%
-  mutate(growth = c(NA, diff(log(INDPRO))))
-
-INDPRO %>%
-  ggplot(aes(date, growth)) +
-  geom_line()
-
-monthly_mobile <- read_csv("output/mobile_so_monthly.csv")
-
-monthly_mobile <- monthly_mobile %>%
-  filter(`Country Name` == "United States Of America") %>%
-  select(Date, iOS, Android) %>%
-  rename("date" = Date)
-
-df <- monthly_mobile %>%
-  left_join(INDPRO) %>%
-  arrange(date) %>%
-  mutate(MP = (Android - iOS) - (dplyr::lag(Android) - dplyr::lag(iOS)),
-         MP =  MP / 100) %>%
-  mutate(recession = if_else(growth < 0 & dplyr::lead(growth, n = 1) < 0, 1, 0)) %>%
-  mutate(recession = if_else(dplyr::lag(recession) == 1 & growth < 0, 1, recession)) %>%
-  mutate(recession = if_else(is.na(recession), 0, recession))
-
-df %>%
-  ggplot(aes(date, growth, linetype = "Production")) +
-  geom_line() +
-  geom_line(aes(date, MP, linetype = "MP"))
-
-ggsave("usa.png")
-
-df %>%
-  ggplot(aes(growth, MP)) +
-  geom_point() +
-  geom_smooth(method = "lm")
-ggsave("scatter_usa.png")
-
-model_ols <- lm(MP ~ growth + recession, 
-                data = df)
-
-summary(model_ols)
 
 
 
